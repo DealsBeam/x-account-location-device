@@ -17,6 +17,14 @@ The script extracts this official location and device data from X's GraphQL API,
 - **Smart Caching**: 24-hour cache optimized for X's rate limits with manual clearing options
 - **Cross-Platform**: Works on Firefox, Chrome, Edge, and other browsers with Tampermonkey
 
+<hr>
+<img width="866" height="106" alt="image" src="https://github.com/user-attachments/assets/3ce0434a-4ba8-423c-8388-f722e6f9aad5" />
+<hr>
+<img width="866" height="125" alt="image" src="https://github.com/user-attachments/assets/60bc8fcb-c167-43b2-8bb1-f5593ccbb484" />
+<hr>
+<img width="866" height="100" alt="image" src="https://github.com/user-attachments/assets/7ab9f87a-ef6b-4c78-9fca-38d98a34cba5" />
+<hr>
+
 ## 🚀 Installation
 
 ### Prerequisites

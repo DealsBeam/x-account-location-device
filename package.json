@@ -1,0 +1,20 @@
+{
+  "name": "x-account-location-flag-tests",
+  "version": "1.0.0",
+  "description": "Tests for X Account Location Flag user script.",
+  "main": "x-account-location-flag.user.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "chai": "^4.3.4",
+    "jsdom": "^19.0.0",
+    "mocha": "^9.1.3"
+  }
+}

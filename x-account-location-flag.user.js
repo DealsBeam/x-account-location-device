@@ -622,11 +622,15 @@
             const link = element.querySelector('a[href^="/"]');
             if (link) {
                 const href = link.getAttribute('href');
-                const match = href.match(/^\/([^/]+)$/);
+                const match = href.match(/^\/([a-zA-Z0-9_]+)/);
                 if (match) {
                     const username = match[1];
                     const invalid = ['home', 'explore', 'notifications', 'messages', 'search', 'settings'];
-                    if (!invalid.includes(username)) return username;
+                    if (!invalid.includes(username)) {
+                        return username;
+                    } else {
+                        return null; // Explicitly return null if invalid
+                    }
                 }
             }
 

@@ -431,35 +431,26 @@
     background: rgba(15, 20, 25, 0.1);
 }
 
-/* Sidebar Link */
-#x-country-blocker-link {
+/* Sidebar Block Countries Link - hover styling to match X's native nav items */
+#x-country-blocker-link > div {
     transition: background 0.2s;
+    border-radius: 9999px;
 }
 
-#x-country-blocker-link:hover {
+#x-country-blocker-link:hover > div {
     background: rgba(231, 233, 234, 0.1);
 }
 
-[data-x-theme="light"] #x-country-blocker-link:hover {
+[data-x-theme="light"] #x-country-blocker-link:hover > div {
     background: rgba(15, 20, 25, 0.1);
 }
 
-/* Sidebar link text - default dark/dim mode */
-.x-blocker-text {
-    color: rgb(231, 233, 234);
-}
-
-/* Sidebar link icon - default dark/dim mode */
-.x-blocker-icon svg {
+/* Icon fill color */
+#x-country-blocker-link svg {
     fill: rgb(231, 233, 234);
 }
 
-/* Light theme sidebar */
-[data-x-theme="light"] .x-blocker-text {
-    color: rgb(15, 20, 25);
-}
-
-[data-x-theme="light"] .x-blocker-icon svg {
+[data-x-theme="light"] #x-country-blocker-link svg {
     fill: rgb(15, 20, 25);
 }
 

@@ -246,12 +246,15 @@ Read the full [Privacy Policy](PRIVACY.md).
 
 ### v2.0.1
 
-**Bug Fixes**
-- Fixed `getComputedStyle` → `window.getComputedStyle` for Zen browser/Firefox compatibility ([#4](https://github.com/xaitax/x-account-location-device/issues/4))
+**🐛 Bug Fixes**
+- Fixed `getComputedStyle` → `window.getComputedStyle` for Zen/Firefox compatibility ([#4](https://github.com/xaitax/x-account-location-device/issues/4))
+- Fixed sidebar "Block Countries" breaking compact layout ([#3](https://github.com/xaitax/x-account-location-device/issues/3))
 
-**Enhancements**
-- Toggle-able sidebar "Block Countries" link — can now be hidden via Options ([#2](https://github.com/xaitax/x-account-location-device/issues/2))
-- Full country blocker UI in Options page — manage blocked countries without visiting X first
+**✨ Enhancements**
+- Toggle-able sidebar "Block Countries" link — can be hidden via Options ([#2](https://github.com/xaitax/x-account-location-device/issues/2))
+- Full country blocker UI in Options page — manage blocked countries without visiting X
+- Support for followers/following/verified followers pages
+- Sidebar link adapts automatically on window resize (compact ↔ normal mode)
 
 ---
 

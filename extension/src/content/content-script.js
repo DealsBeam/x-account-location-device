@@ -346,16 +346,29 @@ function startObserver() {
             for (const node of mutation.addedNodes) {
                 if (node.nodeType !== Node.ELEMENT_NODE) continue;
 
-                // Check if node matches our selector
+                // Check if node matches our username selector (tweets, etc.)
                 if (node.matches && node.matches(SELECTORS.USERNAME)) {
                     if (!node.dataset.xProcessed) {
                         pendingElements.add(node);
                     }
                 }
+                
+                // Check if node matches UserCell (followers/following pages)
+                if (node.matches && node.matches(SELECTORS.USER_CELL)) {
+                    if (!node.dataset.xProcessed) {
+                        pendingElements.add(node);
+                    }
+                }
 
-                // Check descendants
+                // Check descendants for both selectors
                 if (node.querySelectorAll) {
                     node.querySelectorAll(SELECTORS.USERNAME).forEach(el => {
+                        if (!el.dataset.xProcessed) {
+                            pendingElements.add(el);
+                        }
+                    });
+                    
+                    node.querySelectorAll(SELECTORS.USER_CELL).forEach(el => {
                         if (!el.dataset.xProcessed) {
                             pendingElements.add(el);
                         }
@@ -388,12 +401,21 @@ function startObserver() {
 function scanPage() {
     if (!isEnabled) return;
 
-    const elements = document.querySelectorAll(SELECTORS.USERNAME);
+    // Scan for regular username elements (tweets, etc.)
+    const usernameElements = document.querySelectorAll(SELECTORS.USERNAME);
+    
+    // Scan for UserCell elements (followers/following pages)
+    const userCellElements = document.querySelectorAll(SELECTORS.USER_CELL);
+    
+    const totalElements = usernameElements.length + userCellElements.length;
+    
     // Always log scan results so user can see activity
-    if (elements.length > 0) {
-        console.log(`🔍 X-Posed: Found ${elements.length} username elements to process`);
+    if (totalElements > 0) {
+        console.log(`🔍 X-Posed: Found ${usernameElements.length} username elements + ${userCellElements.length} user cells to process`);
     }
-    processElementsBatch(Array.from(elements));
+    
+    // Process both types
+    processElementsBatch([...Array.from(usernameElements), ...Array.from(userCellElements)]);
 }
 
 /**
@@ -427,10 +449,73 @@ function processElementsBatch(elements) {
 const userInfoCache = new Map();
 
 /**
- * Process a single username element
+ * Extract username from a UserCell element
+ */
+function extractUsernameFromUserCell(userCell) {
+    // Method 1: Look for UserAvatar-Container-{username} testid
+    const avatarContainer = userCell.querySelector('[data-testid^="UserAvatar-Container-"]');
+    if (avatarContainer) {
+        const testId = avatarContainer.getAttribute('data-testid');
+        const match = testId.match(/UserAvatar-Container-(.+)/);
+        if (match) {
+            return match[1];
+        }
+    }
+    
+    // Method 2: Look for profile links
+    const profileLinks = userCell.querySelectorAll('a[href^="/"]');
+    for (const link of profileLinks) {
+        const href = link.getAttribute('href');
+        // Skip non-profile links
+        if (href.includes('/') && href.split('/').length === 2) {
+            const screenName = href.slice(1); // Remove leading /
+            // Validate it looks like a username (no special chars except _)
+            if (/^[a-zA-Z0-9_]+$/.test(screenName)) {
+                return screenName;
+            }
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Find the insertion point for badge in UserCell
+ */
+function findUserCellInsertionPoint(userCell, screenName) {
+    // Look for the @username span
+    const allSpans = userCell.querySelectorAll('span');
+    for (const span of allSpans) {
+        if (span.textContent === `@${screenName}`) {
+            return { target: span.parentElement, ref: span.nextSibling };
+        }
+    }
+    
+    // Fallback: look for the display name element and insert after it
+    const nameLinks = userCell.querySelectorAll('a[href="/' + screenName + '"]');
+    for (const link of nameLinks) {
+        // Find the inner span with the display name
+        const nameSpan = link.querySelector('span span');
+        if (nameSpan && !nameSpan.textContent.startsWith('@')) {
+            return { target: link, ref: null };
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Process a single username element (can be UserName element or UserCell)
  */
 async function processElement(element) {
-    const screenName = extractUsername(element);
+    // Check if this is a UserCell element
+    const isUserCell = element.matches && element.matches(SELECTORS.USER_CELL);
+    
+    // Extract username based on element type
+    const screenName = isUserCell
+        ? extractUsernameFromUserCell(element)
+        : extractUsername(element);
+        
     if (!screenName) {
         return;
     }
@@ -480,7 +565,7 @@ async function processElement(element) {
             
             // Create badge from cache
             if (info.location || info.device) {
-                createBadge(element, screenName, info);
+                createBadge(element, screenName, info, isUserCell);
             }
         }
         return;
@@ -502,7 +587,7 @@ async function processElement(element) {
                         return;
                     }
                     if (info.location || info.device) {
-                        createBadge(element, screenName, info);
+                        createBadge(element, screenName, info, isUserCell);
                     }
                 }
             }
@@ -517,7 +602,10 @@ async function processElement(element) {
     if (debugMode) {
         shimmer = document.createElement('span');
         shimmer.className = CSS_CLASSES.FLAG_SHIMMER;
-        const insertionPoint = findInsertionPoint(element, screenName);
+        // Use appropriate insertion point finder
+        const insertionPoint = isUserCell
+            ? findUserCellInsertionPoint(element, screenName)
+            : findInsertionPoint(element, screenName);
         if (insertionPoint) {
             insertionPoint.target.insertBefore(shimmer, insertionPoint.ref);
         }
@@ -586,7 +674,7 @@ async function processElement(element) {
 
         // Create and insert badge
         if (info.location || info.device) {
-            createBadge(element, screenName, info);
+            createBadge(element, screenName, info, isUserCell);
         }
     } catch (error) {
         userInfoCache.set(screenName, null);
@@ -598,7 +686,7 @@ async function processElement(element) {
 /**
  * Create info badge for a user
  */
-function createBadge(element, screenName, info) {
+function createBadge(element, screenName, info, isUserCell = false) {
     // Check if badge already exists
     if (element.querySelector(`.${CSS_CLASSES.INFO_BADGE}`)) {
         return;
@@ -657,15 +745,25 @@ function createBadge(element, screenName, info) {
         });
     }
 
-    // Find insertion point and insert
-    const insertionPoint = findInsertionPoint(element, screenName);
+    // Find insertion point based on element type and insert
+    const insertionPoint = isUserCell
+        ? findUserCellInsertionPoint(element, screenName)
+        : findInsertionPoint(element, screenName);
+        
     if (insertionPoint) {
         insertionPoint.target.insertBefore(badge, insertionPoint.ref);
-        debug(`Badge inserted for @${screenName}`);
+        debug(`Badge inserted for @${screenName}${isUserCell ? ' (UserCell)' : ''}`);
     } else {
-        debug(`No insertion point found for @${screenName}`);
+        debug(`No insertion point found for @${screenName}${isUserCell ? ' (UserCell)' : ''}`);
     }
 }
+
+/**
+ * Sidebar link observer to handle re-injection on resize/mode change
+ */
+let sidebarObserver = null;
+let currentNav = null;
+let resizeTimeout = null;
 
 /**
  * Inject sidebar link for country blocker
@@ -704,12 +802,67 @@ function injectSidebarLink() {
 
         if (nav) {
             clearInterval(checkSidebar);
+            currentNav = nav;
             addBlockerLink(nav);
+            observeSidebarChanges(nav);
+            setupResizeHandler();
         }
     }, 500);
 
     // Stop after 10 seconds
     setTimeout(() => clearInterval(checkSidebar), 10000);
+}
+
+/**
+ * Observe sidebar for changes (mode switches on resize)
+ */
+function observeSidebarChanges(nav) {
+    if (sidebarObserver) {
+        sidebarObserver.disconnect();
+    }
+
+    sidebarObserver = new MutationObserver(() => {
+        // Check if our link still exists
+        const ourLink = document.getElementById('x-country-blocker-link');
+        const profileLink = nav.querySelector(SELECTORS.PROFILE_LINK);
+        
+        if (!ourLink && profileLink && settings.showSidebarBlockerLink !== false) {
+            // Our link was removed (React re-render), re-inject it
+            debug('Sidebar link removed, re-injecting...');
+            addBlockerLink(nav);
+        }
+    });
+
+    sidebarObserver.observe(nav, {
+        childList: true,
+        subtree: true
+    });
+}
+
+/**
+ * Handle window resize to refresh sidebar link for mode changes
+ */
+function setupResizeHandler() {
+    window.addEventListener('resize', () => {
+        if (resizeTimeout) {
+            clearTimeout(resizeTimeout);
+        }
+        
+        // Debounce: wait for resize to finish
+        resizeTimeout = setTimeout(() => {
+            if (!currentNav || settings.showSidebarBlockerLink === false) return;
+            
+            // Remove existing link and re-add with fresh clone
+            const existingLink = document.getElementById('x-country-blocker-link');
+            if (existingLink) {
+                existingLink.remove();
+            }
+            
+            // Re-inject with fresh clone from current Profile link state
+            addBlockerLink(currentNav);
+            debug('Sidebar link refreshed after resize');
+        }, 300);
+    });
 }
 
 /**
@@ -732,30 +885,52 @@ function addBlockerLink(nav) {
     const profileLink = nav.querySelector(SELECTORS.PROFILE_LINK);
     if (!profileLink) return;
 
-    const link = document.createElement('a');
+    // Deep clone the profile link to get exact same structure and classes
+    const link = profileLink.cloneNode(true);
+    
+    // Update the cloned link's attributes - use both ID and class
     link.id = 'x-country-blocker-link';
+    link.classList.add('x-blocker-nav-link');
     link.href = '#';
-    link.setAttribute('role', 'link');
-    link.className = profileLink.className;
+    link.removeAttribute('data-testid');
     link.setAttribute('aria-label', 'Block Countries');
+    
+    // Find and replace the SVG icon with our shield icon
+    const svg = link.querySelector('svg');
+    if (svg) {
+        svg.innerHTML = '<g><path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm6 9.09c0 4-2.55 7.7-6 8.83-3.45-1.13-6-4.82-6-8.83V6.31l6-2.12 6 2.12v4.78z"></path></g>';
+    }
+    
+    // Find and replace the text content - try multiple methods
+    // Method 1: Direct span search within [dir="ltr"]
+    const textDiv = link.querySelector('[dir="ltr"]');
+    if (textDiv) {
+        const spans = textDiv.querySelectorAll('span');
+        if (spans.length > 0) {
+            // First span should be the text, keep structure
+            spans[0].textContent = 'Block Countries';
+            // Second span is usually just a space, keep it
+        } else {
+            // Fallback: set text directly
+            textDiv.textContent = 'Block Countries';
+        }
+    } else {
+        // Method 2: Find any container that might have text "Profile"
+        const allSpans = link.querySelectorAll('span');
+        for (const span of allSpans) {
+            if (span.textContent.trim() === 'Profile') {
+                span.textContent = 'Block Countries';
+                break;
+            }
+        }
+    }
 
-    link.innerHTML = `
-        <div class="css-175oi2r r-sdzlij r-dnmrzs r-1awozwy r-18u37iz r-1777fci r-xyw6el r-o7ynqc r-6416eg">
-            <div class="css-175oi2r x-blocker-icon">
-                <svg viewBox="0 0 24 24" aria-hidden="true" class="r-4qtqp9 r-yyyyoo r-dnmrzs r-bnwqim r-lrvibr r-m6rgpd r-1nao33i r-lwhw9o r-cnnz9e">
-                    <g><path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm6 9.09c0 4-2.55 7.7-6 8.83-3.45-1.13-6-4.82-6-8.83V6.31l6-2.12 6 2.12v4.78z"></path></g>
-                </svg>
-            </div>
-            <div dir="ltr" class="css-146c3p1 r-dnmrzs r-1udh08x r-1udbk01 r-3s2u2q r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-adyw6z r-135wba7 r-16dba41 r-dlybji r-nazi8o x-blocker-text">
-                <span class="css-1jxf684 r-bcqeeo r-1ttztb7 r-qvutc0 r-poiln3">Block Countries</span>
-            </div>
-        </div>
-    `;
-
-    link.addEventListener('click', e => {
+    // Remove any event listeners from clone by replacing onclick
+    link.onclick = e => {
         e.preventDefault();
+        e.stopPropagation();
         showBlockerModal();
-    });
+    };
 
     profileLink.parentElement.insertBefore(link, profileLink.nextSibling);
 }
